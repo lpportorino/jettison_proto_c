@@ -2,5 +2,5 @@
 
 Auto-generated C bindings using nanopb.
 
-Generated: 2025-09-22 15:19:32 UTC
-Commit: b2fb000a5f03e7a2d37d79590e0f1243452df25c
+Generated: 2025-09-23 07:45:14 UTC
+Commit: 56860c3cb91d7a4a3d3ef1aaef78f70eeacaa03d
