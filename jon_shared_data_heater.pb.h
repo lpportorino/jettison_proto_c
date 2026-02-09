@@ -24,12 +24,16 @@ typedef struct _ser_JonGuiDataHeater {
     float current_A;
     float power_W;
     bool has_channel_0;
-    ser_JonGuiDataHeaterChannelStatus channel_0;
+    ser_JonGuiDataHeaterChannelStatus channel_0; /* Day camera glass (60W) */
     bool has_channel_1;
-    ser_JonGuiDataHeaterChannelStatus channel_1;
+    ser_JonGuiDataHeaterChannelStatus channel_1; /* LRF glass (15W) */
     bool has_channel_2;
-    ser_JonGuiDataHeaterChannelStatus channel_2;
+    ser_JonGuiDataHeaterChannelStatus channel_2; /* Heat camera glass (60W) */
     bool automatic_control_enabled;
+    /* Target temperatures for PID control (persisted via state storage) */
+    float target_temp_channel_0;
+    float target_temp_channel_1;
+    float target_temp_channel_2;
 } ser_JonGuiDataHeater;
 
 
@@ -39,9 +43,9 @@ extern "C" {
 
 /* Initializer values for message structs */
 #define ser_JonGuiDataHeaterChannelStatus_init_default {0, 0, 0, 0}
-#define ser_JonGuiDataHeater_init_default        {0, 0, 0, false, ser_JonGuiDataHeaterChannelStatus_init_default, false, ser_JonGuiDataHeaterChannelStatus_init_default, false, ser_JonGuiDataHeaterChannelStatus_init_default, 0}
+#define ser_JonGuiDataHeater_init_default        {0, 0, 0, false, ser_JonGuiDataHeaterChannelStatus_init_default, false, ser_JonGuiDataHeaterChannelStatus_init_default, false, ser_JonGuiDataHeaterChannelStatus_init_default, 0, 0, 0, 0}
 #define ser_JonGuiDataHeaterChannelStatus_init_zero {0, 0, 0, 0}
-#define ser_JonGuiDataHeater_init_zero           {0, 0, 0, false, ser_JonGuiDataHeaterChannelStatus_init_zero, false, ser_JonGuiDataHeaterChannelStatus_init_zero, false, ser_JonGuiDataHeaterChannelStatus_init_zero, 0}
+#define ser_JonGuiDataHeater_init_zero           {0, 0, 0, false, ser_JonGuiDataHeaterChannelStatus_init_zero, false, ser_JonGuiDataHeaterChannelStatus_init_zero, false, ser_JonGuiDataHeaterChannelStatus_init_zero, 0, 0, 0, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define ser_JonGuiDataHeaterChannelStatus_temperature_tag 1
@@ -55,6 +59,9 @@ extern "C" {
 #define ser_JonGuiDataHeater_channel_1_tag       5
 #define ser_JonGuiDataHeater_channel_2_tag       6
 #define ser_JonGuiDataHeater_automatic_control_enabled_tag 7
+#define ser_JonGuiDataHeater_target_temp_channel_0_tag 8
+#define ser_JonGuiDataHeater_target_temp_channel_1_tag 9
+#define ser_JonGuiDataHeater_target_temp_channel_2_tag 10
 
 /* Struct field encoding specification for nanopb */
 #define ser_JonGuiDataHeaterChannelStatus_FIELDLIST(X, a) \
@@ -72,7 +79,10 @@ X(a, STATIC,   SINGULAR, FLOAT,    power_W,           3) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  channel_0,         4) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  channel_1,         5) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  channel_2,         6) \
-X(a, STATIC,   SINGULAR, BOOL,     automatic_control_enabled,   7)
+X(a, STATIC,   SINGULAR, BOOL,     automatic_control_enabled,   7) \
+X(a, STATIC,   SINGULAR, FLOAT,    target_temp_channel_0,   8) \
+X(a, STATIC,   SINGULAR, FLOAT,    target_temp_channel_1,   9) \
+X(a, STATIC,   SINGULAR, FLOAT,    target_temp_channel_2,  10)
 #define ser_JonGuiDataHeater_CALLBACK NULL
 #define ser_JonGuiDataHeater_DEFAULT NULL
 #define ser_JonGuiDataHeater_channel_0_MSGTYPE ser_JonGuiDataHeaterChannelStatus
@@ -89,7 +99,7 @@ extern const pb_msgdesc_t ser_JonGuiDataHeater_msg;
 /* Maximum encoded size of messages (where known) */
 #define SER_JON_SHARED_DATA_HEATER_PB_H_MAX_SIZE ser_JonGuiDataHeater_size
 #define ser_JonGuiDataHeaterChannelStatus_size   17
-#define ser_JonGuiDataHeater_size                74
+#define ser_JonGuiDataHeater_size                89
 
 #ifdef __cplusplus
 } /* extern "C" */

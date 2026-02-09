@@ -47,16 +47,11 @@ typedef struct _cmd_Heater_DisableAutomaticControl {
     char dummy_field;
 } cmd_Heater_DisableAutomaticControl;
 
-/* AutomaticControlChannelParams contains automatic regulation parameters for a single heater channel */
+/* AutomaticControlChannelParams contains automatic regulation parameters for a single heater channel
+ Note: PID gains (kp, ki, kd) are loaded from Redis config_editor, not sent via command */
 typedef struct _cmd_Heater_AutomaticControlChannelParams {
-    /* Target temperature in Celsius */
+    /* Target temperature in Celsius (persisted via manifold state storage) */
     float target_temperature;
-    /* Proportional gain */
-    float kp;
-    /* Integral gain */
-    float ki;
-    /* Derivative gain */
-    float kd;
 } cmd_Heater_AutomaticControlChannelParams;
 
 /* SetAutomaticControlParams configures automatic regulation parameters for all channels */
@@ -95,7 +90,7 @@ extern "C" {
 #define cmd_Heater_GetStatus_init_default        {0}
 #define cmd_Heater_EnableAutomaticControl_init_default {0}
 #define cmd_Heater_DisableAutomaticControl_init_default {0}
-#define cmd_Heater_AutomaticControlChannelParams_init_default {0, 0, 0, 0}
+#define cmd_Heater_AutomaticControlChannelParams_init_default {0}
 #define cmd_Heater_SetAutomaticControlParams_init_default {false, cmd_Heater_AutomaticControlChannelParams_init_default, false, cmd_Heater_AutomaticControlChannelParams_init_default, false, cmd_Heater_AutomaticControlChannelParams_init_default}
 #define cmd_Heater_Root_init_zero                {0, {cmd_Heater_Start_init_zero}}
 #define cmd_Heater_Start_init_zero               {0}
@@ -104,7 +99,7 @@ extern "C" {
 #define cmd_Heater_GetStatus_init_zero           {0}
 #define cmd_Heater_EnableAutomaticControl_init_zero {0}
 #define cmd_Heater_DisableAutomaticControl_init_zero {0}
-#define cmd_Heater_AutomaticControlChannelParams_init_zero {0, 0, 0, 0}
+#define cmd_Heater_AutomaticControlChannelParams_init_zero {0}
 #define cmd_Heater_SetAutomaticControlParams_init_zero {false, cmd_Heater_AutomaticControlChannelParams_init_zero, false, cmd_Heater_AutomaticControlChannelParams_init_zero, false, cmd_Heater_AutomaticControlChannelParams_init_zero}
 
 /* Field tags (for use in manual encoding/decoding) */
@@ -115,9 +110,6 @@ extern "C" {
 #define cmd_Heater_SetHeating_temp_error_1_tag   5
 #define cmd_Heater_SetHeating_temp_error_2_tag   6
 #define cmd_Heater_AutomaticControlChannelParams_target_temperature_tag 1
-#define cmd_Heater_AutomaticControlChannelParams_kp_tag 2
-#define cmd_Heater_AutomaticControlChannelParams_ki_tag 3
-#define cmd_Heater_AutomaticControlChannelParams_kd_tag 4
 #define cmd_Heater_SetAutomaticControlParams_channel_0_tag 1
 #define cmd_Heater_SetAutomaticControlParams_channel_1_tag 2
 #define cmd_Heater_SetAutomaticControlParams_channel_2_tag 3
@@ -184,10 +176,7 @@ X(a, STATIC,   SINGULAR, FLOAT,    temp_error_2,      6)
 #define cmd_Heater_DisableAutomaticControl_DEFAULT NULL
 
 #define cmd_Heater_AutomaticControlChannelParams_FIELDLIST(X, a) \
-X(a, STATIC,   SINGULAR, FLOAT,    target_temperature,   1) \
-X(a, STATIC,   SINGULAR, FLOAT,    kp,                2) \
-X(a, STATIC,   SINGULAR, FLOAT,    ki,                3) \
-X(a, STATIC,   SINGULAR, FLOAT,    kd,                4)
+X(a, STATIC,   SINGULAR, FLOAT,    target_temperature,   1)
 #define cmd_Heater_AutomaticControlChannelParams_CALLBACK NULL
 #define cmd_Heater_AutomaticControlChannelParams_DEFAULT NULL
 
@@ -224,12 +213,12 @@ extern const pb_msgdesc_t cmd_Heater_SetAutomaticControlParams_msg;
 
 /* Maximum encoded size of messages (where known) */
 #define CMD_HEATER_JON_SHARED_CMD_HEATER_PB_H_MAX_SIZE cmd_Heater_Root_size
-#define cmd_Heater_AutomaticControlChannelParams_size 20
+#define cmd_Heater_AutomaticControlChannelParams_size 5
 #define cmd_Heater_DisableAutomaticControl_size  0
 #define cmd_Heater_EnableAutomaticControl_size   0
 #define cmd_Heater_GetStatus_size                0
-#define cmd_Heater_Root_size                     68
-#define cmd_Heater_SetAutomaticControlParams_size 66
+#define cmd_Heater_Root_size                     32
+#define cmd_Heater_SetAutomaticControlParams_size 21
 #define cmd_Heater_SetHeating_size               30
 #define cmd_Heater_Start_size                    0
 #define cmd_Heater_Stop_size                     0
