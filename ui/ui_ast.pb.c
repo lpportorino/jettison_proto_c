@@ -6,73 +6,13 @@
 #error Regenerate this file with the current version of nanopb generator.
 #endif
 
-PB_BIND(ui_Screen, ui_Screen, 2)
+PB_BIND(ui_Screen, ui_Screen, AUTO)
 
 
-PB_BIND(ui_WidgetNode, ui_WidgetNode, 2)
+PB_BIND(ui_WidgetNode, ui_WidgetNode, AUTO)
 
 
 PB_BIND(ui_WidgetNode_BindingsEntry, ui_WidgetNode_BindingsEntry, AUTO)
-
-
-PB_BIND(ui_ObjProps, ui_ObjProps, AUTO)
-
-
-PB_BIND(ui_ButtonProps, ui_ButtonProps, AUTO)
-
-
-PB_BIND(ui_LabelProps, ui_LabelProps, AUTO)
-
-
-PB_BIND(ui_SliderProps, ui_SliderProps, AUTO)
-
-
-PB_BIND(ui_ImageProps, ui_ImageProps, 2)
-
-
-PB_BIND(ui_ArcProps, ui_ArcProps, AUTO)
-
-
-PB_BIND(ui_BarProps, ui_BarProps, AUTO)
-
-
-PB_BIND(ui_SwitchProps, ui_SwitchProps, AUTO)
-
-
-PB_BIND(ui_CheckboxProps, ui_CheckboxProps, AUTO)
-
-
-PB_BIND(ui_DropdownProps, ui_DropdownProps, 2)
-
-
-PB_BIND(ui_RollerProps, ui_RollerProps, 2)
-
-
-PB_BIND(ui_TextareaProps, ui_TextareaProps, 2)
-
-
-PB_BIND(ui_SpinboxProps, ui_SpinboxProps, AUTO)
-
-
-PB_BIND(ui_SpinnerProps, ui_SpinnerProps, AUTO)
-
-
-PB_BIND(ui_LedProps, ui_LedProps, AUTO)
-
-
-PB_BIND(ui_LineProps, ui_LineProps, AUTO)
-
-
-PB_BIND(ui_ScaleProps, ui_ScaleProps, AUTO)
-
-
-PB_BIND(ui_ButtonMatrixProps, ui_ButtonMatrixProps, 2)
-
-
-PB_BIND(ui_TableProps, ui_TableProps, AUTO)
-
-
-PB_BIND(ui_Point, ui_Point, AUTO)
 
 
 PB_BIND(ui_EventBinding, ui_EventBinding, AUTO)
@@ -94,36 +34,6 @@ PB_BIND(ui_Color, ui_Color, AUTO)
 
 
 PB_BIND(ui_ShadowBundle, ui_ShadowBundle, AUTO)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
