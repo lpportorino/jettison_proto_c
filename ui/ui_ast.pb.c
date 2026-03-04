@@ -6,16 +6,91 @@
 #error Regenerate this file with the current version of nanopb generator.
 #endif
 
-PB_BIND(ui_Screen, ui_Screen, AUTO)
+PB_BIND(ui_SubjectDeclaration, ui_SubjectDeclaration, AUTO)
 
 
-PB_BIND(ui_WidgetNode, ui_WidgetNode, AUTO)
+PB_BIND(ui_StateUpdate, ui_StateUpdate, AUTO)
+
+
+PB_BIND(ui_SubjectValue, ui_SubjectValue, AUTO)
+
+
+PB_BIND(ui_Screen, ui_Screen, 2)
+
+
+PB_BIND(ui_WidgetNode, ui_WidgetNode, 2)
 
 
 PB_BIND(ui_WidgetNode_BindingsEntry, ui_WidgetNode_BindingsEntry, AUTO)
 
 
+PB_BIND(ui_WidgetNode_BindFormatsEntry, ui_WidgetNode_BindFormatsEntry, AUTO)
+
+
+PB_BIND(ui_ObjProps, ui_ObjProps, AUTO)
+
+
+PB_BIND(ui_ButtonProps, ui_ButtonProps, AUTO)
+
+
+PB_BIND(ui_LabelProps, ui_LabelProps, AUTO)
+
+
+PB_BIND(ui_SliderProps, ui_SliderProps, AUTO)
+
+
+PB_BIND(ui_ImageProps, ui_ImageProps, AUTO)
+
+
+PB_BIND(ui_ArcProps, ui_ArcProps, AUTO)
+
+
+PB_BIND(ui_BarProps, ui_BarProps, AUTO)
+
+
+PB_BIND(ui_SwitchProps, ui_SwitchProps, AUTO)
+
+
+PB_BIND(ui_CheckboxProps, ui_CheckboxProps, AUTO)
+
+
+PB_BIND(ui_DropdownProps, ui_DropdownProps, AUTO)
+
+
+PB_BIND(ui_RollerProps, ui_RollerProps, AUTO)
+
+
+PB_BIND(ui_TextareaProps, ui_TextareaProps, AUTO)
+
+
+PB_BIND(ui_SpinboxProps, ui_SpinboxProps, AUTO)
+
+
+PB_BIND(ui_SpinnerProps, ui_SpinnerProps, AUTO)
+
+
+PB_BIND(ui_LedProps, ui_LedProps, AUTO)
+
+
+PB_BIND(ui_LineProps, ui_LineProps, AUTO)
+
+
+PB_BIND(ui_ScaleProps, ui_ScaleProps, AUTO)
+
+
+PB_BIND(ui_ButtonMatrixProps, ui_ButtonMatrixProps, AUTO)
+
+
+PB_BIND(ui_TableProps, ui_TableProps, AUTO)
+
+
+PB_BIND(ui_Point, ui_Point, AUTO)
+
+
 PB_BIND(ui_EventBinding, ui_EventBinding, AUTO)
+
+
+PB_BIND(ui_VisibilityBinding, ui_VisibilityBinding, AUTO)
 
 
 PB_BIND(ui_Layout, ui_Layout, AUTO)
@@ -43,11 +118,39 @@ PB_BIND(ui_ShadowBundle, ui_ShadowBundle, AUTO)
 
 
 
-#ifndef PB_CONVERT_DOUBLE_FLOAT
-/* On some platforms (such as AVR), double is really float.
- * To be able to encode/decode double on these platforms, you need.
- * to define PB_CONVERT_DOUBLE_FLOAT in pb.h or compiler command line.
- */
-PB_STATIC_ASSERT(sizeof(double) == 8, DOUBLE_MUST_BE_8_BYTES)
-#endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
