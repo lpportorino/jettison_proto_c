@@ -66,16 +66,43 @@ typedef enum _ui_EventTrigger {
     ui_EventTrigger_TRIGGER_LONG_PRESSED = 2 /* LV_EVENT_LONG_PRESSED */
 } ui_EventTrigger;
 
-/* Which gesture/value the patcher writes into a slot, and how to encode it. */
+/* WHERE the patcher reads the value it writes into a slot. This is the SOURCE
+ axis only; how the value is written is PatchEncoding below. */
 typedef enum _ui_PatchKind {
     ui_PatchKind_PATCH_KIND_UNSPECIFIED = 0,
     ui_PatchKind_PATCH_KIND_NDC_X = 1, /* gesture NDC x → a double slot (verbatim, no recast) */
     ui_PatchKind_PATCH_KIND_NDC_Y = 2, /* gesture NDC y → a double slot (verbatim, no recast) */
-    ui_PatchKind_PATCH_KIND_DELTA = 3, /* pinch/wheel ±1 step → a padded-varint int slot */
-    ui_PatchKind_PATCH_KIND_WIDGET_VALUE = 4, /* widget int value → a padded-varint int slot */
+    ui_PatchKind_PATCH_KIND_DELTA = 3, /* pinch/wheel ±1 step → an int slot */
+    ui_PatchKind_PATCH_KIND_WIDGET_VALUE = 4, /* the emitting widget's int value → an int slot */
     ui_PatchKind_PATCH_KIND_NDC_X2 = 5, /* ROI rubber-band 2nd-corner NDC x → a double slot (verbatim) */
-    ui_PatchKind_PATCH_KIND_NDC_Y2 = 6 /* ROI rubber-band 2nd-corner NDC y → a double slot (verbatim) */
+    ui_PatchKind_PATCH_KIND_NDC_Y2 = 6, /* ROI rubber-band 2nd-corner NDC y → a double slot (verbatim) */
+    /* The current int of the NAMED local subject in FieldPatch.subject. The one
+ source that is neither a pointer gesture nor the emitting widget's own
+ value, which is what lets a multi-field FORM be sent by a control that has
+ no value of its own: each slot names its own subject, so N slots carry N
+ independent values without the emit call gaining N arguments. */
+    ui_PatchKind_PATCH_KIND_SUBJECT_VALUE = 7
 } ui_PatchKind;
+
+/* HOW the patcher writes a value-sourced slot. Separate from PatchKind because
+ the two are genuinely orthogonal: ONE integer source targets three different
+ wire shapes, so folding them into one enum needs a cross product that grows
+ multiplicatively with every new source.
+
+ MEANINGFUL ONLY FOR THE VALUE-SOURCED KINDS — DELTA, WIDGET_VALUE and
+ SUBJECT_VALUE, each of which must set a defined encoding. The four NDC kinds
+ ARE 8-byte verbatim doubles by definition, so they carry UNSPECIFIED and the
+ renderer REFUSES a set encoding on them: the fact lives in exactly one field
+ rather than in two that can disagree. */
+typedef enum _ui_PatchEncoding {
+    ui_PatchEncoding_PATCH_ENCODING_UNSPECIFIED = 0, /* the NDC kinds; refused on a value kind */
+    /* Non-minimal padded varint of (value × wire_scale), byte_width bytes wide. */
+    ui_PatchEncoding_PATCH_ENCODING_PADDED_VARINT = 1,
+    /* 8 little-endian IEEE-754 bytes of (value ÷ wire_scale). byte_width must be 8. */
+    ui_PatchEncoding_PATCH_ENCODING_DOUBLE_LE = 2,
+    /* 4 little-endian IEEE-754 bytes of (value ÷ wire_scale). byte_width must be 4. */
+    ui_PatchEncoding_PATCH_ENCODING_FLOAT_LE = 3
+} ui_PatchEncoding;
 
 /* A recognized gesture kind; mirrors gesture_kind_t (src/gesture.h) so a
  host-side decision tag selects its pre-encoded template directly. */
@@ -463,16 +490,20 @@ typedef struct _ui_SliderProps {
     int32_t max_value;
     int32_t value;
     ui_BarMode mode;
-    /* Scrubber contract — one prop, two coupled renderer behaviors. When set,
- the slider (a) seeks immediately on press: LV_EVENT_PRESSED maps the
- pressed point to a value with the stock update_knob_pos math (stock LVGL
- seeks a stationary track tap only at RELEASE), and (b) widens the ext
- click area to LV_DPX(24) — the measured finger envelope; the stock ctor
- sets LV_DPX(8). The widening rides this prop because the wire carries no
- ext-click vocabulary; a slider without the prop keeps full stock
- behavior (release-seek + the 8 px halo). BAR_MODE_RANGE never
- press-seeks: which knob a press adjusts is the two-knob proximity
- contract, and jumping a knob on DOWN would preempt it. */
+    /* Seek immediately on press: LV_EVENT_PRESSED maps the pressed point to a
+ value with the stock update_knob_pos math. Stock LVGL seeks a stationary
+ track tap only at RELEASE, so this changes WHEN the value moves, and
+ nothing else. BAR_MODE_RANGE never press-seeks: which knob a press
+ adjusts is the two-knob proximity contract, and jumping a knob on DOWN
+ would preempt it.
+
+ THIS PROP IS BEHAVIOUR ONLY. It used to also widen the ext click area to
+ LV_DPX(24), because the wire had nowhere else to put a touch affordance
+ — so a scrubber could not ask for the envelope without the seek, or the
+ seek without the envelope, and no other widget could ask for either.
+ WidgetNode.hit_slop now carries that, for every widget; a press-seek
+ slider that wants the envelope sets both, and its author owes hit_slop's
+ reserve-the-space duty. */
     bool seek_on_press;
 } ui_SliderProps;
 
@@ -659,11 +690,28 @@ typedef struct _ui_EventBinding {
 /* One fixed-width slot in a CmdSpec.root_template the renderer overwrites. */
 typedef struct _ui_FieldPatch {
     uint32_t byte_offset; /* start of the slot in root_template */
-    uint32_t byte_width; /* slot width (8 for a double, 5/10 for a padded varint) */
+    uint32_t byte_width; /* slot width (8 double, 4 float, 5/10 padded varint) */
     ui_PatchKind kind;
-    /* gen-time wire-scale (uigen.scales): the runtime value × scale is the
- wire int for a varint leaf; 1 for a verbatim double (NDC). */
+    /* gen-time fixed-point factor (uigen.scales), whose ONE definition is
+ `proto value × wire_scale = the ABI int` the LVGL widgets and subjects
+ ride. The float/double encodings therefore DIVIDE by it to recover the
+ proto value; the padded varint MULTIPLIES, because an integer leaf's ABI
+ int is already in the proto's own unit and its scale is 1. A wire_scale
+ ≤ 0 is refused rather than applied — it can only come from a malformed
+ producer, and both directions would silently corrupt the slot. */
     int32_t wire_scale;
+    /* The local subject whose current int this slot reads. REQUIRED when kind is
+ PATCH_KIND_SUBJECT_VALUE and MUST be empty for every other kind; the
+ renderer refuses both violations. Bounded at 63 like every other subject
+ reference (SubjectDeclaration.name, VisibilityBinding.subject,
+ EventBinding.set_subject), so a name legal to DECLARE is always legal to
+ reference here. A NAME rather than a registry index deliberately: the
+ renderer's registry order is a decode-time implementation detail that a
+ dropped or reordered declaration silently shifts, so an index would
+ resolve to the WRONG subject and send a plausible wrong value, while an
+ unresolvable name fails loud at load. */
+    char subject[64];
+    ui_PatchEncoding encoding;
 } ui_FieldPatch;
 
 typedef PB_BYTES_ARRAY_T(128) ui_CmdSpec_root_template_t;
@@ -675,10 +723,14 @@ typedef struct _ui_CmdSpec {
     /* the full deterministic cmd.Root protobuf (envelope + leaf in its
  fixed-width slot, leaf written at a SENTINEL the gen-time patch located). */
     ui_CmdSpec_root_template_t root_template;
-    /* the slot(s) to overwrite at runtime (up to 4 — an NDC x/y pair, plus the
- ROI rubber-band's 2nd-corner x2/y2 pair). */
+    /* The slot(s) to overwrite at runtime. Bounded at 8 by the WIDEST command
+ this vocabulary must be able to send in one shot: the rotary scan-node
+ commands carry 7 operator-facing fields (an index, two zoom-table values,
+ azimuth, elevation, linger and speed), so a form for one needs 7 slots.
+ The gesture shapes that set the previous bound of 4 are unaffected — an
+ NDC x/y pair is 2 and an ROI rubber-band's two corners are 4. */
     pb_size_t patches_count;
-    ui_FieldPatch patches[4];
+    ui_FieldPatch patches[8];
 } ui_CmdSpec;
 
 /* One gesture → its pre-encoded cmd template, keyed by GestureKind. Rides
@@ -940,6 +992,30 @@ typedef struct _ui_WidgetNode {
  recolors while its value is out of range. */
     bool has_color_when;
     ui_ColorBinding color_when;
+    /* Touch affordance: grow this node's HIT box beyond its drawn box by this
+ many design pixels, on all four sides (lv_obj_set_ext_click_area, which
+ is one value per object — LVGL has no per-side form, so neither does
+ this). DPI-scaled through LV_DPX, so 24 here is 24px at DPI 160 and 48
+ at 320; 0 (the default) is exactly 0 at every DPI and means the hit box
+ IS the drawn box.
+
+ This is an lv_obj_t FIELD, not a style property, which is why it sits on
+ the node rather than in a StyleGroup — it cannot be varied per state and
+ it does not cascade.
+
+ AUTHORING DUTY, and it is the whole reason this is explicit rather than
+ a per-widget-class default. The slop is INVISIBLE to layout: a flex or
+ grid parent reserves space by the DRAWN box, so slop bleeds into
+ whatever sits next to this node, and lv_indev_search_obj returns the
+ FIRST hit walking children in REVERSE — so in the overlapped band one
+ sibling silently takes every press and the other is dead there, with no
+ pixel and no event to show for it. Reserve the space you claim: keep at
+ least this many clear pixels to every interactive sibling, or wrap the
+ node in a transparent container that owns the margin. Prefer growing the
+ CONTROL where the design allows it, because that growth is the kind a
+ layout can see. renderer/src/renderer.h carries the full contract and
+ docs/UI-QUALITY-CONTRACTS.md §2.5 the sibling-gap arithmetic. */
+    uint32_t hit_slop;
 } ui_WidgetNode;
 
 /* A complete UI screen — root message pushed via controls_load_ui(). */
@@ -1012,8 +1088,12 @@ extern "C" {
 #define _ui_EventTrigger_ARRAYSIZE ((ui_EventTrigger)(ui_EventTrigger_TRIGGER_LONG_PRESSED+1))
 
 #define _ui_PatchKind_MIN ui_PatchKind_PATCH_KIND_UNSPECIFIED
-#define _ui_PatchKind_MAX ui_PatchKind_PATCH_KIND_NDC_Y2
-#define _ui_PatchKind_ARRAYSIZE ((ui_PatchKind)(ui_PatchKind_PATCH_KIND_NDC_Y2+1))
+#define _ui_PatchKind_MAX ui_PatchKind_PATCH_KIND_SUBJECT_VALUE
+#define _ui_PatchKind_ARRAYSIZE ((ui_PatchKind)(ui_PatchKind_PATCH_KIND_SUBJECT_VALUE+1))
+
+#define _ui_PatchEncoding_MIN ui_PatchEncoding_PATCH_ENCODING_UNSPECIFIED
+#define _ui_PatchEncoding_MAX ui_PatchEncoding_PATCH_ENCODING_FLOAT_LE
+#define _ui_PatchEncoding_ARRAYSIZE ((ui_PatchEncoding)(ui_PatchEncoding_PATCH_ENCODING_FLOAT_LE+1))
 
 #define _ui_GestureKind_MIN ui_GestureKind_GESTURE_KIND_PAN_MOVE
 #define _ui_GestureKind_MAX ui_GestureKind_GESTURE_KIND_ROI
@@ -1150,6 +1230,7 @@ extern "C" {
 #define ui_EventBinding_trigger_ENUMTYPE ui_EventTrigger
 
 #define ui_FieldPatch_kind_ENUMTYPE ui_PatchKind
+#define ui_FieldPatch_encoding_ENUMTYPE ui_PatchEncoding
 
 
 #define ui_GestureSpec_kind_ENUMTYPE ui_GestureKind
@@ -1174,7 +1255,7 @@ extern "C" {
 #define ui_StateUpdate_init_default              {{{NULL}, NULL}}
 #define ui_SubjectValue_init_default             {"", 0, {0}}
 #define ui_Screen_init_default                   {false, ui_WidgetNode_init_default, {{NULL}, NULL}}
-#define ui_WidgetNode_init_default               {_ui_WidgetType_MIN, 0, 0, "", {{NULL}, NULL}, false, ui_EventBinding_init_default, false, ui_Layout_init_default, {{NULL}, NULL}, {{NULL}, NULL}, 0, {ui_ObjProps_init_default}, false, ui_VisibilityBinding_init_default, {{NULL}, NULL}, 0, 0, 0, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, 0, false, ui_VisibilityBinding_init_default, 0, 0, NULL, false, ui_VisibilityBinding_init_default, false, ui_ColorBinding_init_default}
+#define ui_WidgetNode_init_default               {_ui_WidgetType_MIN, 0, 0, "", {{NULL}, NULL}, false, ui_EventBinding_init_default, false, ui_Layout_init_default, {{NULL}, NULL}, {{NULL}, NULL}, 0, {ui_ObjProps_init_default}, false, ui_VisibilityBinding_init_default, {{NULL}, NULL}, 0, 0, 0, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, 0, false, ui_VisibilityBinding_init_default, 0, 0, NULL, false, ui_VisibilityBinding_init_default, false, ui_ColorBinding_init_default, 0}
 #define ui_WidgetNode_BindingsEntry_init_default {"", ""}
 #define ui_WidgetNode_BindFormatsEntry_init_default {"", ""}
 #define ui_TreePatchOp_init_default              {_ui_PatchOpKind_MIN, 0, 0, 0, false, ui_WidgetNode_init_default}
@@ -1205,8 +1286,8 @@ extern "C" {
 #define ui_HostProxyProps_init_default           {"", _ui_ProxyMode_MIN, 0, 0, 0, 0, 0, 0}
 #define ui_Point_init_default                    {0, 0}
 #define ui_EventBinding_init_default             {"", _ui_EventTrigger_MIN, 0, 0, "", 0, 0, 0, NULL, 0, NULL}
-#define ui_FieldPatch_init_default               {0, 0, _ui_PatchKind_MIN, 0}
-#define ui_CmdSpec_init_default                  {"", {0, {0}}, 0, {ui_FieldPatch_init_default, ui_FieldPatch_init_default, ui_FieldPatch_init_default, ui_FieldPatch_init_default}}
+#define ui_FieldPatch_init_default               {0, 0, _ui_PatchKind_MIN, 0, "", _ui_PatchEncoding_MIN}
+#define ui_CmdSpec_init_default                  {"", {0, {0}}, 0, {ui_FieldPatch_init_default, ui_FieldPatch_init_default, ui_FieldPatch_init_default, ui_FieldPatch_init_default, ui_FieldPatch_init_default, ui_FieldPatch_init_default, ui_FieldPatch_init_default, ui_FieldPatch_init_default}}
 #define ui_GestureSpec_init_default              {_ui_GestureKind_MIN, false, ui_CmdSpec_init_default}
 #define ui_VisibilityBinding_init_default        {"", 0, _ui_CompareOp_MIN}
 #define ui_ColorBinding_init_default             {false, ui_VisibilityBinding_init_default, false, ui_Color_init_default}
@@ -1220,7 +1301,7 @@ extern "C" {
 #define ui_StateUpdate_init_zero                 {{{NULL}, NULL}}
 #define ui_SubjectValue_init_zero                {"", 0, {0}}
 #define ui_Screen_init_zero                      {false, ui_WidgetNode_init_zero, {{NULL}, NULL}}
-#define ui_WidgetNode_init_zero                  {_ui_WidgetType_MIN, 0, 0, "", {{NULL}, NULL}, false, ui_EventBinding_init_zero, false, ui_Layout_init_zero, {{NULL}, NULL}, {{NULL}, NULL}, 0, {ui_ObjProps_init_zero}, false, ui_VisibilityBinding_init_zero, {{NULL}, NULL}, 0, 0, 0, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, 0, false, ui_VisibilityBinding_init_zero, 0, 0, NULL, false, ui_VisibilityBinding_init_zero, false, ui_ColorBinding_init_zero}
+#define ui_WidgetNode_init_zero                  {_ui_WidgetType_MIN, 0, 0, "", {{NULL}, NULL}, false, ui_EventBinding_init_zero, false, ui_Layout_init_zero, {{NULL}, NULL}, {{NULL}, NULL}, 0, {ui_ObjProps_init_zero}, false, ui_VisibilityBinding_init_zero, {{NULL}, NULL}, 0, 0, 0, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, 0, false, ui_VisibilityBinding_init_zero, 0, 0, NULL, false, ui_VisibilityBinding_init_zero, false, ui_ColorBinding_init_zero, 0}
 #define ui_WidgetNode_BindingsEntry_init_zero    {"", ""}
 #define ui_WidgetNode_BindFormatsEntry_init_zero {"", ""}
 #define ui_TreePatchOp_init_zero                 {_ui_PatchOpKind_MIN, 0, 0, 0, false, ui_WidgetNode_init_zero}
@@ -1251,8 +1332,8 @@ extern "C" {
 #define ui_HostProxyProps_init_zero              {"", _ui_ProxyMode_MIN, 0, 0, 0, 0, 0, 0}
 #define ui_Point_init_zero                       {0, 0}
 #define ui_EventBinding_init_zero                {"", _ui_EventTrigger_MIN, 0, 0, "", 0, 0, 0, NULL, 0, NULL}
-#define ui_FieldPatch_init_zero                  {0, 0, _ui_PatchKind_MIN, 0}
-#define ui_CmdSpec_init_zero                     {"", {0, {0}}, 0, {ui_FieldPatch_init_zero, ui_FieldPatch_init_zero, ui_FieldPatch_init_zero, ui_FieldPatch_init_zero}}
+#define ui_FieldPatch_init_zero                  {0, 0, _ui_PatchKind_MIN, 0, "", _ui_PatchEncoding_MIN}
+#define ui_CmdSpec_init_zero                     {"", {0, {0}}, 0, {ui_FieldPatch_init_zero, ui_FieldPatch_init_zero, ui_FieldPatch_init_zero, ui_FieldPatch_init_zero, ui_FieldPatch_init_zero, ui_FieldPatch_init_zero, ui_FieldPatch_init_zero, ui_FieldPatch_init_zero}}
 #define ui_GestureSpec_init_zero                 {_ui_GestureKind_MIN, false, ui_CmdSpec_init_zero}
 #define ui_VisibilityBinding_init_zero           {"", 0, _ui_CompareOp_MIN}
 #define ui_ColorBinding_init_zero                {false, ui_VisibilityBinding_init_zero, false, ui_Color_init_zero}
@@ -1361,6 +1442,8 @@ extern "C" {
 #define ui_FieldPatch_byte_width_tag             2
 #define ui_FieldPatch_kind_tag                   3
 #define ui_FieldPatch_wire_scale_tag             4
+#define ui_FieldPatch_subject_tag                5
+#define ui_FieldPatch_encoding_tag               6
 #define ui_CmdSpec_command_id_tag                1
 #define ui_CmdSpec_root_template_tag             2
 #define ui_CmdSpec_patches_tag                   3
@@ -1457,6 +1540,7 @@ extern "C" {
 #define ui_WidgetNode_gestures_tag               44
 #define ui_WidgetNode_enabled_when_tag           45
 #define ui_WidgetNode_color_when_tag             46
+#define ui_WidgetNode_hit_slop_tag               47
 #define ui_Screen_root_tag                       1
 #define ui_Screen_subjects_tag                   2
 #define ui_TreePatchOp_kind_tag                  1
@@ -1552,7 +1636,8 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  checked_when,     42) \
 X(a, STATIC,   SINGULAR, UINT32,   uid,              43) \
 X(a, POINTER,  REPEATED, MESSAGE,  gestures,         44) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  enabled_when,     45) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  color_when,       46)
+X(a, STATIC,   OPTIONAL, MESSAGE,  color_when,       46) \
+X(a, STATIC,   SINGULAR, UINT32,   hit_slop,         47)
 #define ui_WidgetNode_CALLBACK pb_default_field_callback
 #define ui_WidgetNode_DEFAULT NULL
 #define ui_WidgetNode_bindings_MSGTYPE ui_WidgetNode_BindingsEntry
@@ -1845,7 +1930,9 @@ X(a, POINTER,  REPEATED, MESSAGE,  cmd_by_value,     10)
 X(a, STATIC,   SINGULAR, UINT32,   byte_offset,       1) \
 X(a, STATIC,   SINGULAR, UINT32,   byte_width,        2) \
 X(a, STATIC,   SINGULAR, UENUM,    kind,              3) \
-X(a, STATIC,   SINGULAR, SINT32,   wire_scale,        4)
+X(a, STATIC,   SINGULAR, SINT32,   wire_scale,        4) \
+X(a, STATIC,   SINGULAR, STRING,   subject,           5) \
+X(a, STATIC,   SINGULAR, UENUM,    encoding,          6)
 #define ui_FieldPatch_CALLBACK NULL
 #define ui_FieldPatch_DEFAULT NULL
 
@@ -2041,12 +2128,12 @@ extern const pb_msgdesc_t ui_ShadowBundle_msg;
 #define ui_ChartProps_size                       3040
 #define ui_ChartSeries_size                      374
 #define ui_CheckboxProps_size                    2
-#define ui_CmdSpec_size                          349
+#define ui_CmdSpec_size                          973
 #define ui_ColorBinding_size                     100
 #define ui_Color_size                            18
 #define ui_DropdownProps_size                    1210
-#define ui_FieldPatch_size                       20
-#define ui_GestureSpec_size                      354
+#define ui_FieldPatch_size                       87
+#define ui_GestureSpec_size                      978
 #define ui_HostProxyProps_size                   128
 #define ui_ImageProps_size                       293
 #define ui_LabelProps_size                       2
