@@ -5,5 +5,5 @@ Auto-generated C bindings using nanopb.
 **Target Platform**: ARM64 (NVIDIA Jetson AGX Orin BSP 6.2)
 **Build Architecture**: aarch64
 
-Generated: 2026-08-15 10:16:48 UTC
-Commit: d2ebf05a16ee8fffaa0226992db073bbbec461de
+Generated: 2026-08-26 14:54:22 UTC
+Commit: ac3a4b78973eb6830148f10f2a17584a2a872946
