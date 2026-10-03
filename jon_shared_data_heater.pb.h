@@ -4,6 +4,7 @@
 #ifndef PB_SER_JON_SHARED_DATA_HEATER_PB_H_INCLUDED
 #define PB_SER_JON_SHARED_DATA_HEATER_PB_H_INCLUDED
 #include <pb.h>
+#include "jon_shared_data_types.pb.h"
 
 #if PB_PROTO_HEADER_VERSION != 40
 #error Regenerate this file with the current version of nanopb generator.
@@ -34,6 +35,14 @@ typedef struct _ser_JonGuiDataHeater {
     float target_temp_channel_0;
     float target_temp_channel_1;
     float target_temp_channel_2;
+    /* Control steps the power budget has run without a fresh relayed
+ whole-system power figure (cmd.Heater.SetSystemPower), counted since the
+ heater guest started. It stays flat while the relayed figure is fresh, and
+ while automatic control is off or no device reading has arrived, because
+ no control step runs then. */
+    uint32_t budget_unrelayed_steps;
+    bool has_health;
+    ser_JonGuiDataModuleHealth health;
 } ser_JonGuiDataHeater;
 
 
@@ -43,9 +52,9 @@ extern "C" {
 
 /* Initializer values for message structs */
 #define ser_JonGuiDataHeaterChannelStatus_init_default {0, 0, 0, 0}
-#define ser_JonGuiDataHeater_init_default        {0, 0, 0, false, ser_JonGuiDataHeaterChannelStatus_init_default, false, ser_JonGuiDataHeaterChannelStatus_init_default, false, ser_JonGuiDataHeaterChannelStatus_init_default, 0, 0, 0, 0}
+#define ser_JonGuiDataHeater_init_default        {0, 0, 0, false, ser_JonGuiDataHeaterChannelStatus_init_default, false, ser_JonGuiDataHeaterChannelStatus_init_default, false, ser_JonGuiDataHeaterChannelStatus_init_default, 0, 0, 0, 0, 0, false, ser_JonGuiDataModuleHealth_init_default}
 #define ser_JonGuiDataHeaterChannelStatus_init_zero {0, 0, 0, 0}
-#define ser_JonGuiDataHeater_init_zero           {0, 0, 0, false, ser_JonGuiDataHeaterChannelStatus_init_zero, false, ser_JonGuiDataHeaterChannelStatus_init_zero, false, ser_JonGuiDataHeaterChannelStatus_init_zero, 0, 0, 0, 0}
+#define ser_JonGuiDataHeater_init_zero           {0, 0, 0, false, ser_JonGuiDataHeaterChannelStatus_init_zero, false, ser_JonGuiDataHeaterChannelStatus_init_zero, false, ser_JonGuiDataHeaterChannelStatus_init_zero, 0, 0, 0, 0, 0, false, ser_JonGuiDataModuleHealth_init_zero}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define ser_JonGuiDataHeaterChannelStatus_temperature_tag 1
@@ -62,6 +71,8 @@ extern "C" {
 #define ser_JonGuiDataHeater_target_temp_channel_0_tag 8
 #define ser_JonGuiDataHeater_target_temp_channel_1_tag 9
 #define ser_JonGuiDataHeater_target_temp_channel_2_tag 10
+#define ser_JonGuiDataHeater_budget_unrelayed_steps_tag 11
+#define ser_JonGuiDataHeater_health_tag          40
 
 /* Struct field encoding specification for nanopb */
 #define ser_JonGuiDataHeaterChannelStatus_FIELDLIST(X, a) \
@@ -82,12 +93,15 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  channel_2,         6) \
 X(a, STATIC,   SINGULAR, BOOL,     automatic_control_enabled,   7) \
 X(a, STATIC,   SINGULAR, FLOAT,    target_temp_channel_0,   8) \
 X(a, STATIC,   SINGULAR, FLOAT,    target_temp_channel_1,   9) \
-X(a, STATIC,   SINGULAR, FLOAT,    target_temp_channel_2,  10)
+X(a, STATIC,   SINGULAR, FLOAT,    target_temp_channel_2,  10) \
+X(a, STATIC,   SINGULAR, UINT32,   budget_unrelayed_steps,  11) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  health,           40)
 #define ser_JonGuiDataHeater_CALLBACK NULL
 #define ser_JonGuiDataHeater_DEFAULT NULL
 #define ser_JonGuiDataHeater_channel_0_MSGTYPE ser_JonGuiDataHeaterChannelStatus
 #define ser_JonGuiDataHeater_channel_1_MSGTYPE ser_JonGuiDataHeaterChannelStatus
 #define ser_JonGuiDataHeater_channel_2_MSGTYPE ser_JonGuiDataHeaterChannelStatus
+#define ser_JonGuiDataHeater_health_MSGTYPE ser_JonGuiDataModuleHealth
 
 extern const pb_msgdesc_t ser_JonGuiDataHeaterChannelStatus_msg;
 extern const pb_msgdesc_t ser_JonGuiDataHeater_msg;
@@ -99,7 +113,7 @@ extern const pb_msgdesc_t ser_JonGuiDataHeater_msg;
 /* Maximum encoded size of messages (where known) */
 #define SER_JON_SHARED_DATA_HEATER_PB_H_MAX_SIZE ser_JonGuiDataHeater_size
 #define ser_JonGuiDataHeaterChannelStatus_size   17
-#define ser_JonGuiDataHeater_size                89
+#define ser_JonGuiDataHeater_size                134
 
 #ifdef __cplusplus
 } /* extern "C" */
